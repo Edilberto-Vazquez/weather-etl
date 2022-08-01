@@ -13,8 +13,16 @@ import (
 
 type efmRecord struct {
 	dateTime      string
-	electricField float32
+	electricField float64
 	rotorStatus   int64
+}
+
+func parseValues(str string) (efTime string, electricField float64, rotorStatus int64) {
+	var splitStr []string = strings.Split(str, ",")
+	efTime = splitStr[0]
+	electricField, _ = strconv.ParseFloat(splitStr[1], 64)
+	rotorStatus, _ = strconv.ParseInt(splitStr[2], 10, 8)
+	return efTime, electricField, rotorStatus
 }
 
 func newEfDate(str, efTime string) string {
@@ -24,44 +32,37 @@ func newEfDate(str, efTime string) string {
 	return timeStamp.UTC().String()
 }
 
-func avgEfByDate(efSet []string) float32 {
-	sum := 0.0
-	divisor := float64(len(efSet))
-	for _, value := range efSet {
-		float, _ := strconv.ParseFloat(value, 32)
-		sum += float
-	}
-	return float32((math.Round((sum / divisor * 100)) / 100))
+func avgEf(sum, divisor float64) float64 {
+	return math.Round((sum / divisor * 100)) / 100
 }
 
-func processEfByDateGroup() func(fileName, str string) (record []interface{}) {
+func processEfByDateGroup() func(efTime string, electricField float64) (avg float64) {
 	var date string
-	var efAverageSet []string
-	return func(fileName, str string) (record []interface{}) {
-		var splitStr []string = strings.Split(str, ",")
-		if efDate := newEfDate(fileName, splitStr[0]); date == "" || efDate == date {
-			efAverageSet = append(efAverageSet, splitStr[1])
-			date = efDate
-			return nil
+	var sum, divisor float64
+	return func(efTime string, electricField float64) (avg float64) {
+		if date == "" || efTime == date {
+			sum, divisor = sum+electricField, divisor+1
+			date = efTime
+			return 0
 		} else {
-			rotorStatus, _ := strconv.ParseInt(splitStr[2], 10, 8)
-			record = []interface{}{efDate, avgEfByDate(efAverageSet), rotorStatus}
-			date = efDate
-			efAverageSet = []string{}
+			avg = avgEf(sum, divisor)
+			sum, divisor = 0.0, 0.0
+			date = efTime
 		}
-		return
+		return avg
 	}
 }
 
 func processEfLines(lines []string, fileName string) []efmRecord {
 	processedLines := make([]efmRecord, 0)
 	avgByDateGropu := processEfByDateGroup()
-	for _, v := range lines {
-		if record := avgByDateGropu(fileName, v); record != nil {
+	for _, str := range lines {
+		hour, electricField, rotorStatus := parseValues(str)
+		if avg := avgByDateGropu(hour, electricField); avg != 0 {
 			processedLines = append(processedLines, efmRecord{
-				dateTime:      record[0].(string),
-				electricField: record[1].(float32),
-				rotorStatus:   record[2].(int64),
+				dateTime:      newEfDate(fileName, hour),
+				electricField: avg,
+				rotorStatus:   rotorStatus,
 			})
 		}
 	}
