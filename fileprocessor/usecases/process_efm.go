@@ -1,6 +1,7 @@
 package usecases
 
 import (
+	"fmt"
 	"log"
 	"math"
 	"path/filepath"
@@ -73,7 +74,33 @@ func ProcessEfm(path string) (electricFields []efmRecord) {
 	if lines, err := utils.ReadFile(path); err != nil {
 		log.Fatal(err)
 	} else {
-		electricFields = processEfLines(lines, filepath.Base(path))
+		if len(lines) > 0 {
+			electricFields = processEfLines(lines, filepath.Base(path))
+		}
 	}
 	return
+}
+
+func Worker(id int, jobs <-chan string, results chan<- []efmRecord) {
+	for job := range jobs {
+		processedLines := ProcessEfm(job)
+		fmt.Println("file", job, "processed")
+		results <- processedLines
+	}
+}
+
+func ProcessMultipleEfm(paths []string) {
+	nWorkers := 4
+	jobs := make(chan string, len(paths))
+	results := make(chan []efmRecord, len(paths))
+	for i := 0; i < nWorkers; i++ {
+		go Worker(i, jobs, results)
+	}
+	for _, efmFile := range paths {
+		jobs <- efmFile
+	}
+	close(jobs)
+	for i := 0; i < len(paths); i++ {
+		<-results
+	}
 }
