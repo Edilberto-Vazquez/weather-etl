@@ -44,7 +44,7 @@ func processLogLines(lines []string, path string) (processedLines []logRecord) {
 			})
 		}
 	}
-	return processedLines
+	return
 }
 
 func ProcessLog(path string) (electricFields []logRecord) {

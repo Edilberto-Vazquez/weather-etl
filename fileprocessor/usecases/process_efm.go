@@ -22,7 +22,7 @@ func parseValues(str string) (efTime string, electricField float64, rotorStatus 
 	efTime = splitStr[0]
 	electricField, _ = strconv.ParseFloat(splitStr[1], 64)
 	rotorStatus = splitStr[2] == "0"
-	return efTime, electricField, rotorStatus
+	return
 }
 
 func newEfDate(str, efTime string) string {
@@ -49,7 +49,7 @@ func processEfByDateGroup() func(efTime string, electricField float64) (avg floa
 			sum, divisor = 0, 0
 			date = efTime
 		}
-		return avg
+		return
 	}
 }
 
@@ -65,7 +65,7 @@ func processEfLines(lines []string, fileName string) (processedLines []efmRecord
 			})
 		}
 	}
-	return processedLines
+	return
 }
 
 func ProcessEfm(path string) (electricFields []efmRecord) {
