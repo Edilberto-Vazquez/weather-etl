@@ -1,7 +1,6 @@
 package usecases
 
 import (
-	"fmt"
 	"log"
 	"math"
 	"path/filepath"
@@ -15,14 +14,14 @@ import (
 type efmRecord struct {
 	dateTime      string
 	electricField float64
-	rotorStatus   int64
+	rotorStatus   bool
 }
 
-func parseValues(str string) (efTime string, electricField float64, rotorStatus int64) {
+func parseValues(str string) (efTime string, electricField float64, rotorStatus bool) {
 	var splitStr []string = strings.Split(str, ",")
 	efTime = splitStr[0]
 	electricField, _ = strconv.ParseFloat(splitStr[1], 64)
-	rotorStatus, _ = strconv.ParseInt(splitStr[2], 10, 8)
+	rotorStatus = splitStr[2] == "0"
 	return efTime, electricField, rotorStatus
 }
 
@@ -47,19 +46,18 @@ func processEfByDateGroup() func(efTime string, electricField float64) (avg floa
 			return 0
 		} else {
 			avg = avgEf(sum, divisor)
-			sum, divisor = 0.0, 0.0
+			sum, divisor = 0, 0
 			date = efTime
 		}
 		return avg
 	}
 }
 
-func processEfLines(lines []string, fileName string) []efmRecord {
-	processedLines := make([]efmRecord, 0)
-	avgByDateGropu := processEfByDateGroup()
+func processEfLines(lines []string, fileName string) (processedLines []efmRecord) {
+	avgByDateGroup := processEfByDateGroup()
 	for _, str := range lines {
 		hour, electricField, rotorStatus := parseValues(str)
-		if avg := avgByDateGropu(hour, electricField); avg != 0 {
+		if avg := avgByDateGroup(hour, electricField); avg != 0 {
 			processedLines = append(processedLines, efmRecord{
 				dateTime:      newEfDate(fileName, hour),
 				electricField: avg,
@@ -81,20 +79,19 @@ func ProcessEfm(path string) (electricFields []efmRecord) {
 	return
 }
 
-func Worker(id int, jobs <-chan string, results chan<- []efmRecord) {
+func worker(id int, jobs <-chan string, results chan<- []efmRecord) {
 	for job := range jobs {
 		processedLines := ProcessEfm(job)
-		fmt.Println("file", job, "processed")
 		results <- processedLines
 	}
 }
 
 func ProcessMultipleEfm(paths []string) {
-	nWorkers := 4
+	nWorkers := 10
 	jobs := make(chan string, len(paths))
 	results := make(chan []efmRecord, len(paths))
 	for i := 0; i < nWorkers; i++ {
-		go Worker(i, jobs, results)
+		go worker(i, jobs, results)
 	}
 	for _, efmFile := range paths {
 		jobs <- efmFile
