@@ -58,18 +58,18 @@ func EFMElectricFieldsExtraction(filPath string) (electricFields models.EFMElect
 		s := scanner.Text()
 		var splitStr []string = strings.Split(s, ",")
 		if len(splitStr) != 3 {
-			log.Printf("[ELECTRIC_FIELDS_EXTRACTION] Not enough values to transform: %s\n", s)
+			log.Printf("[ELECTRIC_FIELDS_EXTRACTION] Not enough values to transform: {%s}\n", s)
 			continue
 		}
 		var timeValue string = splitStr[0]
-		electricField, err := strconv.ParseFloat(splitStr[1], 64)
-		if err != nil {
-			log.Printf("[ELECTRIC_FIELDS_EXTRACTION] Could not get the electric field from this line: %s; error: %s\n", s, err.Error())
-			continue
-		}
 		dateTime, err := createEfDate(fileInfo.Name(), timeValue)
 		if err != nil {
-			log.Printf("[ELECTRIC_FIELDS_EXTRACTION] Could not process this line with this date: %s; error: %s\n", s, err.Error())
+			log.Printf("[ELECTRIC_FIELDS_EXTRACTION] Could not get date from:: {%s}; error: %s\n", s, err.Error())
+			continue
+		}
+		electricField, err := strconv.ParseFloat(splitStr[1], 64)
+		if err != nil {
+			log.Printf("[ELECTRIC_FIELDS_EXTRACTION] Could not get the electric field from: {%s}; error: %s\n", s, err.Error())
 			continue
 		}
 		if avg := calcAvg(timeValue, electricField); avg != 0 {

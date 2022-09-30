@@ -50,13 +50,13 @@ func transformWorker(extractPipeline <-chan models.EFMElectricFields, transformP
 }
 
 func main() {
-	workers := 10
+	workers := 8
 	err := extract.EFMEeventLogExtraction("./etl-test-files/EFMEvents.log", EFMLogEvents)
 	if err != nil {
 		log.Panic(err)
 	}
-	// efmFilesPath, err := utils.ReadDirectory("/home/potatofy/campo-electrico", "efm")
-	efmFilesPath, err := utils.ReadDirectory("./etl-test-files", "efm")
+	efmFilesPath, err := utils.ReadDirectory("/home/potatofy/campo-electrico", "efm")
+	// efmFilesPath, err := utils.ReadDirectory("./etl-test-files", "efm")
 	if err != nil {
 		log.Panic("Could not read directory")
 	}
