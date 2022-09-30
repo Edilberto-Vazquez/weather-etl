@@ -18,5 +18,5 @@ func ReadDirectory(root string, fileType string) (files []string, err error) {
 	if err != nil {
 		return nil, err
 	}
-	return
+	return files, err
 }
