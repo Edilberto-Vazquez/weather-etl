@@ -3,7 +3,6 @@ package extract
 import (
 	"bufio"
 	"errors"
-	"log"
 	"os"
 	"regexp"
 	"strconv"
@@ -65,12 +64,12 @@ func EFMEeventLogExtraction(filePath string, logEventsMap models.EFMLogEvents) e
 		}
 		dateTime, err := getEventDateTime(s)
 		if err != nil {
-			log.Printf("[EVENT_LOG_EXTRACTION] Could not get date from: {%s}; error: %s\n", s, err.Error())
+			// log.Printf("[EVENT_LOG_EXTRACTION] Could not get date from: {%s}; Error: %s\n", s, err.Error())
 			continue
 		}
 		distance, err := getDistance(s)
 		if err != nil {
-			log.Printf("[EVENT_LOG_EXTRACTION] Could not get distance from: {%s}; error: %s\n", s, err.Error())
+			// log.Printf("[EVENT_LOG_EXTRACTION] Could not get distance from: {%s}; Error: %s\n", s, err.Error())
 			continue
 		}
 		logEventsMap[dateTime] = models.EFMLogEvent{

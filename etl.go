@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 
+	"github.com/Edilberto-Vazquez/weather-services/src/drivers"
 	"github.com/Edilberto-Vazquez/weather-services/src/models"
 	"github.com/Edilberto-Vazquez/weather-services/src/usecases/extract"
 	"github.com/Edilberto-Vazquez/weather-services/src/usecases/transform"
@@ -13,65 +14,63 @@ var (
 	EFMLogEvents = make(models.EFMLogEvents)
 )
 
-// func EfmEtl(filePath string, mux *sync.RWMutex) (transformedFile []*transform.TransformedElectricFieldLine, err error) {
-// 	log.Printf("[ELECTRIC_FIELD_ETL] Extracting: %s", filePath)
-// 	extFile, err := extract.ExtractFile(filePath)
-// 	if err != nil {
-// 		log.Printf("[ELECTRIC_FIELD_ETL] Error extracting: %s; error: %s\n", filePath, err.Error())
-// 		return nil, err
-// 	}
-// 	transformedFile, err = transform.TransformElectricFieldFile(extFile, mux)
-// 	if err != nil {
-// 		log.Printf("[ELECTRIC_FIELD_ETL] Error transforming: %s; error: %s\n", filePath, err.Error())
-// 		return nil, err
-// 	}
-// 	log.Printf("[ELECTRIC_FIELD_ETL] Processed successfully: %s\n", filePath)
-// 	return transformedFile, nil
-// }
-
-func extractWorker(filePaths <-chan string, extractPipeline chan<- models.EFMElectricFields) {
-	for path := range filePaths {
+func extractWorker(extractPipeline <-chan string, transformPipeline chan<- *models.EFMElectricFields) {
+	for path := range extractPipeline {
 		log.Printf("Extracting: %s", path)
 		electricFields, err := extract.EFMElectricFieldsExtraction(path)
 		if err != nil {
-			log.Printf("Error extracting: %s; error: %s\n", path, err.Error())
+			log.Printf("Error extracting: %s; Error: %s\n", path, err.Error())
+			transformPipeline <- nil
 			continue
 		}
-		extractPipeline <- electricFields
+		transformPipeline <- electricFields
+		log.Printf("Extracted: %s", path)
 	}
 }
 
-func transformWorker(extractPipeline <-chan models.EFMElectricFields, transformPipeline chan<- models.EFMTransformedLines) {
-	for electricFields := range extractPipeline {
-		log.Printf("Transforming")
+func transformWorker(transformPipeline <-chan *models.EFMElectricFields, loadPipeline chan<- *models.EFMTransformedLines) {
+	for electricFields := range transformPipeline {
+		if electricFields == nil {
+			loadPipeline <- nil
+			continue
+		}
+		log.Printf("Transforming: %s", electricFields.FileName)
 		processedLines := transform.TransformEFMLines(EFMLogEvents, electricFields)
-		transformPipeline <- processedLines
+		loadPipeline <- processedLines
+		log.Printf("Transformed: %s", electricFields.FileName)
 	}
 }
 
 func main() {
-	workers := 8
+	workers := 10
+	m := drivers.MongoDBConnection()
+
+	log.Printf("Extracting event logs from: %s", "./etl-test-files/EFMEvents.log")
 	err := extract.EFMEeventLogExtraction("./etl-test-files/EFMEvents.log", EFMLogEvents)
 	if err != nil {
-		log.Panic(err)
+		log.Panicf("Could not extract events from: %s; Error: %s", "./etl-test-files/EFMEvents.log", err.Error())
 	}
+	log.Printf("Event logs extracted from: %s", "./etl-test-files/EFMEvents.log")
+
+	log.Printf("Reading efm files from: %s", "/home/potatofy/campo-electrico")
 	efmFilesPath, err := utils.ReadDirectory("/home/potatofy/campo-electrico", "efm")
-	// efmFilesPath, err := utils.ReadDirectory("./etl-test-files", "efm")
 	if err != nil {
-		log.Panic("Could not read directory")
+		log.Panicf("Could not read directory: %s", "/home/potatofy/campo-electrico")
 	}
-	filePaths := make(chan string, len(efmFilesPath))
-	extractPipeline := make(chan models.EFMElectricFields, len(efmFilesPath))
-	transformPipeline := make(chan models.EFMTransformedLines, len(efmFilesPath))
+	extractPipeline := make(chan string, len(efmFilesPath))
+	transformPipeline := make(chan *models.EFMElectricFields, 10)
+	loadPipeline := make(chan *models.EFMTransformedLines, 1)
 	for i := 0; i < workers; i++ {
-		go extractWorker(filePaths, extractPipeline)
-		go transformWorker(extractPipeline, transformPipeline)
+		go extractWorker(extractPipeline, transformPipeline)
+		go transformWorker(transformPipeline, loadPipeline)
 	}
 	for _, filePath := range efmFilesPath {
-		filePaths <- filePath
+		extractPipeline <- filePath
 	}
-	close(filePaths)
+	close(extractPipeline)
+
 	for i := 0; i < len(efmFilesPath); i++ {
-		<-transformPipeline
+		m.InsertTransformedLines(<-loadPipeline)
 	}
+	close(loadPipeline)
 }

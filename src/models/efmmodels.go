@@ -13,15 +13,21 @@ type EFMElectricField struct {
 }
 
 type EFMTransformedLine struct {
-	DateTime      string
-	Lightning     bool
-	ElectricField float64
-	Distance      uint8
-	RotorFail     bool
+	DateTime      string  `bson:"dateTime"`
+	Lightning     bool    `bson:"lightning"`
+	ElectricField float64 `bson:"electricField"`
+	Distance      uint8   `bson:"distance"`
+	RotorFail     bool    `bson:"rotorFail"`
 }
 
 type EFMLogEvents map[string]EFMLogEvent
 
-type EFMElectricFields []*EFMElectricField
+type EFMElectricFields struct {
+	FileName       string
+	ElectricFields []EFMElectricField
+}
 
-type EFMTransformedLines []*EFMTransformedLine
+type EFMTransformedLines struct {
+	FileName         string
+	TransformedLines []interface{}
+}

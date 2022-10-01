@@ -3,7 +3,6 @@ package extract
 import (
 	"bufio"
 	"errors"
-	"log"
 	"math"
 	"os"
 	"strconv"
@@ -40,7 +39,7 @@ func groupLinesByTimeAndCalcAvg() func(timeValue string, electricField float64) 
 	}
 }
 
-func EFMElectricFieldsExtraction(filPath string) (electricFields models.EFMElectricFields, err error) {
+func EFMElectricFieldsExtraction(filPath string) (electricFields *models.EFMElectricFields, err error) {
 	file, err := os.Open(filPath)
 	if err != nil {
 		return nil, err
@@ -50,7 +49,11 @@ func EFMElectricFieldsExtraction(filPath string) (electricFields models.EFMElect
 		return nil, err
 	}
 	if fileInfo.Size() == 0 {
-		return nil, errors.New("[ELECTRIC_FIELDS_EXTRACTION] no information to transform")
+		return nil, errors.New("No information to transform")
+	}
+	electricFields = &models.EFMElectricFields{
+		FileName:       filPath,
+		ElectricFields: make([]models.EFMElectricField, 0),
 	}
 	scanner := bufio.NewScanner(file)
 	calcAvg := groupLinesByTimeAndCalcAvg()
@@ -58,22 +61,22 @@ func EFMElectricFieldsExtraction(filPath string) (electricFields models.EFMElect
 		s := scanner.Text()
 		var splitStr []string = strings.Split(s, ",")
 		if len(splitStr) != 3 {
-			log.Printf("[ELECTRIC_FIELDS_EXTRACTION] Not enough values to transform: {%s}\n", s)
+			// log.Printf("[ELECTRIC_FIELDS_EXTRACTION] Not enough values to transform: {%s}\n", s)
 			continue
 		}
 		var timeValue string = splitStr[0]
 		dateTime, err := createEfDate(fileInfo.Name(), timeValue)
 		if err != nil {
-			log.Printf("[ELECTRIC_FIELDS_EXTRACTION] Could not get date from:: {%s}; error: %s\n", s, err.Error())
+			// log.Printf("[ELECTRIC_FIELDS_EXTRACTION] Could not get date from: {%s}; Error: %s\n", s, err.Error())
 			continue
 		}
 		electricField, err := strconv.ParseFloat(splitStr[1], 64)
 		if err != nil {
-			log.Printf("[ELECTRIC_FIELDS_EXTRACTION] Could not get the electric field from: {%s}; error: %s\n", s, err.Error())
+			// log.Printf("[ELECTRIC_FIELDS_EXTRACTION] Could not get the electric field from: {%s}; Error: %s\n", s, err.Error())
 			continue
 		}
 		if avg := calcAvg(timeValue, electricField); avg != 0 {
-			electricFields = append(electricFields, &models.EFMElectricField{
+			electricFields.ElectricFields = append(electricFields.ElectricFields, models.EFMElectricField{
 				DateTime:      dateTime,
 				ElectricField: avg,
 				RotorFail:     splitStr[2] == "1",
