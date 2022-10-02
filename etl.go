@@ -2,6 +2,8 @@ package main
 
 import (
 	"log"
+	"sync"
+	"time"
 
 	"github.com/Edilberto-Vazquez/weather-services/src/drivers"
 	"github.com/Edilberto-Vazquez/weather-services/src/models"
@@ -14,36 +16,36 @@ var (
 	EFMLogEvents = make(models.EFMLogEvents)
 )
 
-func extractWorker(extractPipeline <-chan string, transformPipeline chan<- *models.EFMElectricFields) {
-	for path := range extractPipeline {
-		log.Printf("Extracting: %s", path)
-		electricFields, err := extract.EFMElectricFieldsExtraction(path)
+func etlWorker(files <-chan string, wg *sync.WaitGroup) {
+	defer wg.Done()
+	m := drivers.MongoDBConnection()
+	for file := range files {
+		log.Printf("Extracting: %s", file)
+		electricFields, err := extract.EFMElectricFieldsExtraction(file)
 		if err != nil {
-			log.Printf("Error extracting: %s; Error: %s\n", path, err.Error())
-			transformPipeline <- nil
+			log.Printf("Error extracting: %s; Error: %s\n", file, err.Error())
 			continue
 		}
-		transformPipeline <- electricFields
-		log.Printf("Extracted: %s", path)
-	}
-}
+		log.Printf("Extracted: %s", file)
 
-func transformWorker(transformPipeline <-chan *models.EFMElectricFields, loadPipeline chan<- *models.EFMTransformedLines) {
-	for electricFields := range transformPipeline {
-		if electricFields == nil {
-			loadPipeline <- nil
+		log.Printf("Transforming: %s", electricFields.FileName)
+		transformedLines := transform.TransformEFMLines(EFMLogEvents, electricFields)
+		log.Printf("Transformed: %s", transformedLines.FileName)
+
+		log.Printf("Loading: %s", transformedLines.FileName)
+		err = m.InsertTransformedLines(transformedLines)
+		if err != nil {
+			log.Printf("Error loading: %s; Error: %s\n", transformedLines.FileName, err.Error())
 			continue
 		}
-		log.Printf("Transforming: %s", electricFields.FileName)
-		processedLines := transform.TransformEFMLines(EFMLogEvents, electricFields)
-		loadPipeline <- processedLines
-		log.Printf("Transformed: %s", electricFields.FileName)
+		log.Printf("Loaded: %s", transformedLines.FileName)
 	}
 }
 
 func main() {
 	workers := 10
-	m := drivers.MongoDBConnection()
+	var wg sync.WaitGroup
+	start := time.Now()
 
 	log.Printf("Extracting event logs from: %s", "./etl-test-files/EFMEvents.log")
 	err := extract.EFMEeventLogExtraction("./etl-test-files/EFMEvents.log", EFMLogEvents)
@@ -57,20 +59,16 @@ func main() {
 	if err != nil {
 		log.Panicf("Could not read directory: %s", "/home/potatofy/campo-electrico")
 	}
-	extractPipeline := make(chan string, len(efmFilesPath))
-	transformPipeline := make(chan *models.EFMElectricFields, 10)
-	loadPipeline := make(chan *models.EFMTransformedLines, 1)
+	filesPipeline := make(chan string, len(efmFilesPath))
 	for i := 0; i < workers; i++ {
-		go extractWorker(extractPipeline, transformPipeline)
-		go transformWorker(transformPipeline, loadPipeline)
+		wg.Add(1)
+		go etlWorker(filesPipeline, &wg)
 	}
 	for _, filePath := range efmFilesPath {
-		extractPipeline <- filePath
+		filesPipeline <- filePath
 	}
-	close(extractPipeline)
-
-	for i := 0; i < len(efmFilesPath); i++ {
-		m.InsertTransformedLines(<-loadPipeline)
-	}
-	close(loadPipeline)
+	close(filesPipeline)
+	wg.Wait()
+	duration := time.Since(start)
+	log.Println(duration)
 }

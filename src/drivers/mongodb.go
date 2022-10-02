@@ -31,12 +31,9 @@ func (m *MongoDBDriver) InsertTransformedLines(transformedLines *models.EFMTrans
 	if transformedLines == nil {
 		return nil
 	}
-	log.Printf("Loading %s", transformedLines.FileName)
 	_, err := m.collection.InsertMany(ctx, transformedLines.TransformedLines)
 	if err != nil {
-		log.Printf("Could not load %s", transformedLines.FileName)
 		return err
 	}
-	log.Printf("Loaded %s", transformedLines.FileName)
 	return nil
 }
