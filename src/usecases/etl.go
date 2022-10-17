@@ -52,7 +52,7 @@ func (etl *ETL) GetEFMEventLogs(filePath string) {
 	basePath := path.Base(filePath)
 	file, err := utils.OpenFile(filePath)
 	if err != nil {
-		log.Panicf("Could not open EFM event logs file from %s", basePath)
+		log.Fatalf("Could not open EFM event logs file from %s", basePath)
 	}
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
