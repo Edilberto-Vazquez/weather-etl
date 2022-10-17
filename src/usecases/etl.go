@@ -28,7 +28,7 @@ type ETL struct {
 type ETLConfig func(etl *ETL) error
 
 func NewETL(cfgs ...ETLConfig) *ETL {
-	etl := &ETL{}
+	etl := new(ETL)
 	for _, cfg := range cfgs {
 		err := cfg(etl)
 		if err != nil {
@@ -41,9 +41,9 @@ func NewETL(cfgs ...ETLConfig) *ETL {
 func Config(workers int, repo repository.EFMRepository) ETLConfig {
 	return func(etl *ETL) error {
 		etl.transformedLines = repo
-		etl.workers = workers
 		etl.efmLogEvents = make(models.EFMLogEvents)
 		etl.efmFiles = make([]string, 0)
+		etl.workers = workers
 		return nil
 	}
 }
@@ -102,33 +102,35 @@ func (etl *ETL) GetEFMFilePaths(filesPath string) {
 	etl.efmFilesChan = make(chan string, len(efmFiles))
 }
 
+func (etl *ETL) ETLWorker() {
+	defer etl.wg.Done()
+	for file := range etl.efmFilesChan {
+		pathBase := path.Base(file)
+		efmPipeline := domains.NewEFMPipeline()
+		log.Printf("Extracting: %s", pathBase)
+		err := efmPipeline.Extract(file)
+		if err != nil {
+			log.Printf("Error extracting: %s; Error: %s\n", pathBase, err.Error())
+			continue
+		}
+		log.Printf("Extracted: %s", pathBase)
+		log.Printf("Transforming: %s", pathBase)
+		efmPipeline.Transform(etl.efmLogEvents)
+		log.Printf("Transformed: %s", pathBase)
+		log.Printf("Loading: %s", pathBase)
+		err = efmPipeline.Load(etl.transformedLines)
+		if err != nil {
+			log.Printf("Error loading: %s; Error: %s\n", pathBase, err.Error())
+			continue
+		}
+		log.Printf("Loaded: %s", pathBase)
+	}
+}
+
 func (etl *ETL) Run() {
 	for i := 0; i < etl.workers; i++ {
 		etl.wg.Add(1)
-		go func() {
-			defer etl.wg.Done()
-			for file := range etl.efmFilesChan {
-				pathBase := path.Base(file)
-				efmPipeline := domains.NewEFMPipeline()
-				log.Printf("Extracting: %s", pathBase)
-				err := efmPipeline.Extract(file)
-				if err != nil {
-					log.Printf("Error extracting: %s; Error: %s\n", pathBase, err.Error())
-					continue
-				}
-				log.Printf("Extracted: %s", pathBase)
-				log.Printf("Transforming: %s", pathBase)
-				efmPipeline.Transform(etl.efmLogEvents)
-				log.Printf("Transformed: %s", pathBase)
-				log.Printf("Loading: %s", pathBase)
-				err = efmPipeline.Load(etl.transformedLines)
-				if err != nil {
-					log.Printf("Error loading: %s; Error: %s\n", pathBase, err.Error())
-					continue
-				}
-				log.Printf("Loaded: %s", pathBase)
-			}
-		}()
+		go etl.ETLWorker()
 	}
 	for _, filePath := range etl.efmFiles {
 		etl.efmFilesChan <- filePath
