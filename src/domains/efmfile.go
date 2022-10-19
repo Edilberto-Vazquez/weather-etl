@@ -14,11 +14,11 @@ import (
 )
 
 type EFMElectricField struct {
-	DateTime      string  `bson:"dateTime"`
-	Lightning     bool    `bson:"lightning"`
-	ElectricField float64 `bson:"electricField"`
-	Distance      uint8   `bson:"distance"`
-	RotorFail     bool    `bson:"rotorFail"`
+	DateTime      time.Time `bson:"date_time"`
+	Lightning     bool      `bson:"lightning"`
+	ElectricField float64   `bson:"electric_field"`
+	Distance      uint8     `bson:"distance"`
+	RotorFail     bool      `bson:"rotor_fail"`
 }
 
 type EFMPipeline struct {
@@ -76,7 +76,7 @@ func (efm *EFMPipeline) Extract(filePath string) (err error) {
 		}
 		if avg := calcAvg(splitStr[0], electricField); avg != 0 {
 			efm.ElectricFields = append(efm.ElectricFields, EFMElectricField{
-				DateTime:      dateTime.UTC().String(),
+				DateTime:      dateTime.UTC(),
 				Lightning:     false,
 				ElectricField: avg,
 				Distance:      0,
@@ -89,7 +89,7 @@ func (efm *EFMPipeline) Extract(filePath string) (err error) {
 
 func (efm *EFMPipeline) Transform(logEventsMap models.EFMLogEvents) {
 	for i := 0; i < len(efm.ElectricFields); i++ {
-		value, exist := logEventsMap[efm.ElectricFields[i].(EFMElectricField).DateTime]
+		value, exist := logEventsMap[efm.ElectricFields[i].(EFMElectricField).DateTime.String()]
 		if exist {
 			electricField := efm.ElectricFields[i].(EFMElectricField)
 			electricField.Lightning = value.Lightning

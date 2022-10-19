@@ -19,8 +19,8 @@ func NewMongoDBConnection() *MongoDBDriver {
 	if err != nil {
 		log.Fatal("Could not connect to mongoDB")
 	}
-	db := client.Database("efm-stations")
-	collection := db.Collection("electric-fields")
+	db := client.Database("EFMStations")
+	collection := db.Collection("ElectricFields")
 	return &MongoDBDriver{db, collection}
 }
 
