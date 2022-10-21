@@ -21,9 +21,9 @@ func usage() {
 	flag.PrintDefaults()
 }
 
-func runETL(workers int, eventsFile, efmFiles string) {
+func runETL(workers int, eventsFile, efmFiles, dbURI string) {
 	start := time.Now()
-	etl := usecases.NewETL(usecases.Config(workers, drivers.NewMongoDBConnection()))
+	etl := usecases.NewETL(usecases.Config(workers, drivers.NewMongoDBConnection(dbURI)))
 	etl.GetEFMEventLogs(eventsFile)
 	etl.GetEFMFilePaths(efmFiles)
 	etl.Run()
@@ -35,10 +35,11 @@ func main() {
 	workers := flag.Int("workers", constants.Workers, "The number of workers that are processing the information (Workers should be equal to or less than CPU cores for best performance)")
 	eventsFile := flag.String("events-file", "", "Path of the file with the EFM event logs")
 	efmFiles := flag.String("efm-files", "", "Path of the folder with the EFM files")
+	dbURI := flag.String("db-uri", "", "URI of the DB where the data will be stored")
 	flag.Usage = usage
 	flag.Parse()
-	if *eventsFile != "" && *efmFiles != "" {
-		runETL(*workers, *eventsFile, *efmFiles)
+	if *eventsFile != "" && *efmFiles != "" && *dbURI != "" {
+		runETL(*workers, *eventsFile, *efmFiles, *dbURI)
 	} else {
 		log.Println("-events-file or -efm-files parameter not passed, loading configuration from etl.conf file")
 		file, err := utils.OpenFile("./etl.conf")
@@ -61,9 +62,11 @@ func main() {
 				eventsFile = &parameter[1]
 			case "efm-files":
 				efmFiles = &parameter[1]
+			case "db-uri":
+				dbURI = &parameter[1]
 			}
 		}
 		file.Close()
-		runETL(*workers, *eventsFile, *efmFiles)
+		runETL(*workers, *eventsFile, *efmFiles, *dbURI)
 	}
 }

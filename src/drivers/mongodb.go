@@ -14,8 +14,8 @@ type MongoDBDriver struct {
 	collection *mongo.Collection
 }
 
-func NewMongoDBConnection() *MongoDBDriver {
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI("mongodb://root:root@localhost:27017/efm-stations"))
+func NewMongoDBConnection(dbURI string) *MongoDBDriver {
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(dbURI))
 	if err != nil {
 		log.Fatal("Could not connect to mongoDB")
 	}
