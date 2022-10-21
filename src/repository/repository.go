@@ -1,5 +1,5 @@
 package repository
 
-type EFMRepository interface {
+type Repository interface {
 	InsertTransformedLines(transformedLines []interface{}) error
 }

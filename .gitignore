@@ -28,6 +28,9 @@ go.work
 /vendor/
 /Godeps/
 
+### Go .env##$
+.env
+
 ### Linux ###
 *~
 

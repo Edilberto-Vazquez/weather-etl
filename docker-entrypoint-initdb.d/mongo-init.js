@@ -4,9 +4,9 @@ db.createUser({
   roles: [
     {
       role: "readWrite",
-      db: "efm-stations",
+      db: "InaoeWeatherStations",
     },
   ],
 });
 
-db.createCollection("electric-fields");
+db.createCollection("ElectricFields");

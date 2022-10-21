@@ -5,6 +5,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/Edilberto-Vazquez/weather-services/src/models"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -14,13 +15,13 @@ type MongoDBDriver struct {
 	collection *mongo.Collection
 }
 
-func NewMongoDBConnection(dbURI string) *MongoDBDriver {
-	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(dbURI))
+func NewMongoDBConnection(dbConfig models.DBConfig) *MongoDBDriver {
+	client, err := mongo.Connect(context.TODO(), options.Client().ApplyURI(dbConfig.URI))
 	if err != nil {
 		log.Fatal("Could not connect to mongoDB")
 	}
-	db := client.Database("EFMStations")
-	collection := db.Collection("ElectricFields")
+	db := client.Database(dbConfig.Name)
+	collection := db.Collection(dbConfig.Collection)
 	return &MongoDBDriver{db, collection}
 }
 
