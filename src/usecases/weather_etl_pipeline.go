@@ -2,6 +2,9 @@ package usecases
 
 import (
 	"bufio"
+	"fmt"
+	"log"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -14,27 +17,27 @@ import (
 )
 
 type WeatherETLPipeline struct {
-	filePath string
-	repo     repository.Repository
+	filePath     string
+	dbRepository repository.Repository
 }
 
-func NewWeatherETLPipeline(filepath string, repository repository.Repository) *WeatherETLPipeline {
+func NewWeatherETLPipeline(filepath string, dbRepository repository.Repository) *WeatherETLPipeline {
 	return &WeatherETLPipeline{
-		filePath: filepath,
-		repo:     repository,
+		filePath:     filepath,
+		dbRepository: dbRepository,
 	}
 }
 
 func GetWeatherETLPipeline() models.NewETLPipeline {
 	return func(filePath string, repo repository.Repository) models.ETLPipeline {
 		return &WeatherETLPipeline{
-			filePath: filePath,
-			repo:     repo,
+			filePath:     filePath,
+			dbRepository: repo,
 		}
 	}
 }
 
-func DecodeField(str string) float64 {
+func transformWeatherField(str string) (number float64) {
 	if len(str) == 0 {
 		return 0
 	}
@@ -42,7 +45,7 @@ func DecodeField(str string) float64 {
 	if err != nil {
 		return 0
 	}
-	return number
+	return
 }
 
 func (w *WeatherETLPipeline) Extract() (extractedRecords []string, err error) {
@@ -62,7 +65,7 @@ func (w *WeatherETLPipeline) Extract() (extractedRecords []string, err error) {
 	return extractedRecords, file.Close()
 }
 
-func (w *WeatherETLPipeline) Transform(records []string) (transformedRecords []interface{}) {
+func (w *WeatherETLPipeline) Transform(records []string) (transformedRecords []interface{}, err error) {
 	for i, record := range records {
 		if i == 0 {
 			continue
@@ -79,38 +82,50 @@ func (w *WeatherETLPipeline) Transform(records []string) (transformedRecords []i
 		}
 		transformedRecords = append(transformedRecords, domains.WeatherRecords{
 			DateTime: dateTime,
-			TempIn:   DecodeField(splitRecord[1]),
-			Temp:     DecodeField(splitRecord[2]),
-			Chill:    DecodeField(splitRecord[3]),
-			DewIn:    DecodeField(splitRecord[4]),
-			Dew:      DecodeField(splitRecord[5]),
-			HeatIn:   DecodeField(splitRecord[6]),
-			Heat:     DecodeField(splitRecord[7]),
-			HumIn:    DecodeField(splitRecord[8]),
-			Hum:      DecodeField(splitRecord[9]),
-			WspdHi:   DecodeField(splitRecord[10]),
-			WspdAvg:  DecodeField(splitRecord[11]),
-			WdirAvg:  DecodeField(splitRecord[12]),
-			Bar:      DecodeField(splitRecord[13]),
-			Rain:     DecodeField(splitRecord[14]),
-			RainRate: DecodeField(splitRecord[15]),
+			TempIn:   transformWeatherField(splitRecord[1]),
+			Temp:     transformWeatherField(splitRecord[2]),
+			Chill:    transformWeatherField(splitRecord[3]),
+			DewIn:    transformWeatherField(splitRecord[4]),
+			Dew:      transformWeatherField(splitRecord[5]),
+			HeatIn:   transformWeatherField(splitRecord[6]),
+			Heat:     transformWeatherField(splitRecord[7]),
+			HumIn:    transformWeatherField(splitRecord[8]),
+			Hum:      transformWeatherField(splitRecord[9]),
+			WspdHi:   transformWeatherField(splitRecord[10]),
+			WspdAvg:  transformWeatherField(splitRecord[11]),
+			WdirAvg:  transformWeatherField(splitRecord[12]),
+			Bar:      transformWeatherField(splitRecord[13]),
+			Rain:     transformWeatherField(splitRecord[14]),
+			RainRate: transformWeatherField(splitRecord[15]),
 		})
+	}
+	if len(transformedRecords) == 0 {
+		return nil, fmt.Errorf("no lines could be transformed from file: %s;", path.Base(w.filePath))
 	}
 	return
 }
 
 func (w *WeatherETLPipeline) Load(records []interface{}) error {
-	return w.repo.InsertWeatherRecords(records)
+	return w.dbRepository.InsertWeatherRecords(records)
 }
 
 func (w *WeatherETLPipeline) RunETL() error {
+	log.Printf("[WEATHER_ETL] extracting %s", w.filePath)
 	extractedRecords, err := w.Extract()
 	if err != nil {
+		log.Printf("[WEATHER_ETL] failed extracting %s; error: %s", w.filePath, err)
 		return err
 	}
-	transformedRecords := w.Transform(extractedRecords)
+	log.Printf("[WEATHER_ETL] transforming %s", w.filePath)
+	transformedRecords, err := w.Transform(extractedRecords)
+	if err != nil {
+		log.Printf("[WEATHER_ETL] failed transfroming %s; error: %s", w.filePath, err)
+		return err
+	}
+	log.Printf("[WEATHER_ETL] loading %s", w.filePath)
 	err = w.Load(transformedRecords)
 	if err != nil {
+		log.Printf("[WEATHER_ETL] failed loading %s", w.filePath)
 		return err
 	}
 	return nil
