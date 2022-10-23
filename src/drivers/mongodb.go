@@ -5,14 +5,14 @@ import (
 	"log"
 	"time"
 
+	"github.com/Edilberto-Vazquez/weather-services/src/config"
 	"github.com/Edilberto-Vazquez/weather-services/src/models"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type MongoDBDriver struct {
-	db         *mongo.Database
-	collection *mongo.Collection
+	db *mongo.Database
 }
 
 func NewMongoDBConnection(dbConfig models.DBConfig) *MongoDBDriver {
@@ -21,17 +21,29 @@ func NewMongoDBConnection(dbConfig models.DBConfig) *MongoDBDriver {
 		log.Fatal("Could not connect to mongoDB")
 	}
 	db := client.Database(dbConfig.Name)
-	collection := db.Collection(dbConfig.Collection)
-	return &MongoDBDriver{db, collection}
+	return &MongoDBDriver{db}
 }
 
-func (m *MongoDBDriver) InsertTransformedLines(transformedLines []interface{}) error {
+func (m *MongoDBDriver) InsertEFMRecords(records []interface{}) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if transformedLines == nil {
+	if records == nil {
 		return nil
 	}
-	_, err := m.collection.InsertMany(ctx, transformedLines)
+	_, err := m.db.Collection(config.DB_EFM_COLLECTION).InsertMany(ctx, records)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (m *MongoDBDriver) InsertWeatherRecords(records []interface{}) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if records == nil {
+		return nil
+	}
+	_, err := m.db.Collection(config.DB_WEATHER_COLLECTION).InsertMany(ctx, records)
 	if err != nil {
 		return err
 	}

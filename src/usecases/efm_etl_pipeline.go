@@ -5,77 +5,89 @@ import (
 	"log"
 	"math"
 	"path"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/Edilberto-Vazquez/weather-services/src/constants"
 	"github.com/Edilberto-Vazquez/weather-services/src/domains"
 	"github.com/Edilberto-Vazquez/weather-services/src/models"
 	"github.com/Edilberto-Vazquez/weather-services/src/repository"
 	"github.com/Edilberto-Vazquez/weather-services/src/utils"
 )
 
-var (
-	efmLogEvents = make(models.EFMLogEvents)
-)
+type EFMLogEvent struct {
+	DateTime  string
+	Lightning bool
+	Distance  uint8
+}
 
 type EFMETLPipeline struct {
-	electricFields []interface{}
+	filePath string
+	repo     repository.Repository
 }
 
-func NewEFMETLPipeline() *EFMETLPipeline {
-	return &EFMETLPipeline{electricFields: make([]interface{}, 0)}
-}
+var (
+	efmLogEvents                   = make(map[string]EFMLogEvent, 0)
+	dateTimeRegexp  *regexp.Regexp = regexp.MustCompile(`\d\d/\d\d/\d\d\d\d\s\d\d:\d\d:\d\d`)
+	lightningRegexp *regexp.Regexp = regexp.MustCompile(`Lightning Detected`)
+	distanceRegexp  *regexp.Regexp = regexp.MustCompile(`at\s\d\d\skm|at\s\d\skm`)
+)
 
-func GetEFMETLPipeline() models.NewETLPipeline {
-	return func() models.ETLPipeline {
-		return &EFMETLPipeline{electricFields: make([]interface{}, 0)}
+func NewEFMETLPipeline(file string, repo repository.Repository) *EFMETLPipeline {
+	return &EFMETLPipeline{
+		filePath: file,
+		repo:     repo,
 	}
 }
 
-func SetEFMEventLogs(filePath string) {
+func GetEFMETLPipeline() models.NewETLPipeline {
+	return func(filePath string, repo repository.Repository) models.ETLPipeline {
+		return &EFMETLPipeline{
+			filePath: filePath,
+			repo:     repo,
+		}
+	}
+}
+
+func LoadEFMEventLogs(filePath string) error {
 	basePath := path.Base(filePath)
 	file, err := utils.OpenFile(filePath)
 	if err != nil {
 		log.Fatalf("Could not open EFM event logs file from %s", basePath)
 	}
-	defer file.Close()
 	scanner := bufio.NewScanner(file)
 	log.Printf("Extracting event logs from: %s", basePath)
 	for scanner.Scan() {
 		s := scanner.Text()
-		if !constants.LightningRegexp.MatchString(s) {
+		if !lightningRegexp.MatchString(s) {
 			continue
 		}
-		match, err := utils.FindString(s, constants.DateTimeRegexp)
+		match, err := utils.FindString(s, dateTimeRegexp)
 		if err != nil {
-			// log.Printf("[EVENT_LOG_EXTRACTION] Could not get date from: {%s}; Error: %s\n", s, err.Error())
 			continue
 		}
 		dateTime, err := time.Parse(time.RFC3339, match[6:10]+"-"+match[0:2]+"-"+match[3:5]+"T"+match[11:]+"Z")
 		if err != nil {
-			// log.Printf("[EVENT_LOG_EXTRACTION] Could not parse date: {%s}; Error: %s\n", s, err.Error())
 			continue
 		}
-		match, err = utils.FindString(s, constants.DistanceRegexp)
+		match, err = utils.FindString(s, distanceRegexp)
 		if err != nil {
-			// log.Printf("[EVENT_LOG_EXTRACTION] Could not get distance from: {%s}; Error: %s\n", s, err.Error())
 			continue
 		}
 		var splitDistance []string = strings.Split(match, " ")
 		distance, err := strconv.ParseInt(splitDistance[1], 10, 64)
 		if err != nil {
-			// log.Printf("[EVENT_LOG_EXTRACTION] Could not parse distance: {%s}; Error: %s\n", s, err.Error())
 			continue
 		}
-		efmLogEvents[dateTime.UTC().String()] = models.EFMLogEvent{
+		efmLogEvents[dateTime.UTC().String()] = EFMLogEvent{
 			DateTime:  dateTime.UTC().String(),
 			Lightning: true,
 			Distance:  uint8(distance),
 		}
 	}
 	log.Printf("Event logs extracted from: %s", basePath)
+	return file.Close()
 }
 
 func groupLinesByTimeAndCalcAvg() func(timeValue string, electricField float64) (avg float64) {
@@ -95,59 +107,67 @@ func groupLinesByTimeAndCalcAvg() func(timeValue string, electricField float64) 
 	}
 }
 
-func (efm *EFMETLPipeline) Extract(filePath string) error {
-	file, err := utils.OpenFile(filePath)
+func (efm *EFMETLPipeline) Extract() (extractedRecords []string, err error) {
+	file, err := utils.OpenFile(efm.filePath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	scanner := bufio.NewScanner(file)
-	calcAvg := groupLinesByTimeAndCalcAvg()
 	for scanner.Scan() {
-		s := scanner.Text()
-		var splitStr []string = strings.Split(s, ",")
+		extractedRecords = append(extractedRecords, scanner.Text())
+	}
+	return extractedRecords, file.Close()
+}
+
+func (efm *EFMETLPipeline) Transform(records []string) (transformedRecords []interface{}) {
+	calcAvg := groupLinesByTimeAndCalcAvg()
+	for _, record := range records {
+		var splitStr []string = strings.Split(record, ",")
 		if len(splitStr) != 3 {
-			// log.Printf("[ELECTRIC_FIELDS_EXTRACTION] Not enough values to transform: {%s}\n", s)
 			continue
 		}
-		var date string = strings.Split(path.Base(filePath), "-")[1]
+		var date string = strings.Split(path.Base(efm.filePath), "-")[1]
 		dateTime, err := time.Parse(time.RFC3339, date[4:8]+"-"+date[0:2]+"-"+date[2:4]+"T"+splitStr[0]+"Z")
 		if err != nil {
 			continue
 		}
-		if err != nil {
-			// log.Printf("[ELECTRIC_FIELDS_EXTRACTION] Could not get date from: {%s}; Error: %s\n", s, err.Error())
-			continue
-		}
 		electricField, err := strconv.ParseFloat(splitStr[1], 64)
 		if err != nil {
-			// log.Printf("[ELECTRIC_FIELDS_EXTRACTION] Could not get the electric field from: {%s}; Error: %s\n", s, err.Error())
 			continue
 		}
 		if avg := calcAvg(splitStr[0], electricField); avg != 0 {
-			efm.electricFields = append(efm.electricFields, domains.EFMElectricField{
+			value, exist := efmLogEvents[dateTime.String()]
+			efmElectricField := domains.EFMElectricField{
 				DateTime:      dateTime.UTC(),
-				Lightning:     false,
 				ElectricField: avg,
-				Distance:      0,
 				RotorFail:     splitStr[2] == "1",
-			})
+			}
+			if exist {
+				efmElectricField.Lightning = value.Lightning
+				efmElectricField.Distance = value.Distance
+			} else {
+				efmElectricField.Lightning = false
+				efmElectricField.Distance = 0
+			}
+			transformedRecords = append(transformedRecords, efmElectricField)
 		}
 	}
-	return file.Close()
+	return
 }
 
-func (efm *EFMETLPipeline) Transform() {
-	for i := 0; i < len(efm.electricFields); i++ {
-		value, exist := efmLogEvents[efm.electricFields[i].(domains.EFMElectricField).DateTime.String()]
-		if exist {
-			electricField := efm.electricFields[i].(domains.EFMElectricField)
-			electricField.Lightning = value.Lightning
-			electricField.Distance = value.Distance
-			efm.electricFields[i] = electricField
-		}
+func (efm *EFMETLPipeline) Load(records []interface{}) error {
+	return efm.repo.InsertEFMRecords(records)
+}
+
+func (efm *EFMETLPipeline) RunETL() error {
+	extractedRecords, err := efm.Extract()
+	if err != nil {
+		return err
 	}
-}
-
-func (efm *EFMETLPipeline) Load(repo repository.Repository) error {
-	return repo.InsertTransformedLines(efm.electricFields)
+	transformedRecords := efm.Transform(extractedRecords)
+	err = efm.Load(transformedRecords)
+	if err != nil {
+		return err
+	}
+	return nil
 }

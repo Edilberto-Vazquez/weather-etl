@@ -2,30 +2,16 @@ package models
 
 import "github.com/Edilberto-Vazquez/weather-services/src/repository"
 
-type ETLPipeline interface {
-	Extract(filePath string) error
-	Transform()
-	Load(repo repository.Repository) error
-}
-
-type NewETLPipeline func() ETLPipeline
-
 type DBConfig struct {
-	URI        string
-	Name       string
-	Collection string
+	URI  string
+	Name string
 }
 
-type EFMLogEvent struct {
-	DateTime  string
-	Lightning bool
-	Distance  uint8
+type ETLPipeline interface {
+	Extract() (extractedRecords []string, err error)
+	Transform(records []string) (transformedRecords []interface{})
+	Load(records []interface{}) error
+	RunETL() error
 }
 
-type EFMLogEvents map[string]EFMLogEvent
-
-type EFMConfig struct {
-	EFMLogEvents EFMLogEvents
-	EFMFiles     []string
-	EFMFilesChan chan string
-}
+type NewETLPipeline func(filePath string, repo repository.Repository) ETLPipeline

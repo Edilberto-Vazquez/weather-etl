@@ -1,5 +1,6 @@
 package repository
 
 type Repository interface {
-	InsertTransformedLines(transformedLines []interface{}) error
+	InsertEFMRecords(records []interface{}) error
+	InsertWeatherRecords(records []interface{}) error
 }
