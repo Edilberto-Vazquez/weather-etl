@@ -2,6 +2,7 @@ package usecases
 
 import (
 	"bufio"
+	"fmt"
 	"log"
 	"math"
 	"path"
@@ -23,61 +24,59 @@ type EFMLogEvent struct {
 }
 
 type EFMETLPipeline struct {
-	filePath string
-	repo     repository.Repository
+	filePath     string
+	dbRepository repository.Repository
 }
 
 var (
-	efmLogEvents                   = make(map[string]EFMLogEvent, 0)
-	dateTimeRegexp  *regexp.Regexp = regexp.MustCompile(`\d\d/\d\d/\d\d\d\d\s\d\d:\d\d:\d\d`)
-	lightningRegexp *regexp.Regexp = regexp.MustCompile(`Lightning Detected`)
-	distanceRegexp  *regexp.Regexp = regexp.MustCompile(`at\s\d\d\skm|at\s\d\skm`)
+	efmLogEvents    map[string]EFMLogEvent = make(map[string]EFMLogEvent, 0)
+	dateTimeRegexp  *regexp.Regexp         = regexp.MustCompile(`\d\d/\d\d/\d\d\d\d\s\d\d:\d\d:\d\d`)
+	lightningRegexp *regexp.Regexp         = regexp.MustCompile(`Lightning Detected`)
+	distanceRegexp  *regexp.Regexp         = regexp.MustCompile(`at\s\d\d\skm|at\s\d\skm`)
 )
 
-func NewEFMETLPipeline(file string, repo repository.Repository) *EFMETLPipeline {
-	return &EFMETLPipeline{
-		filePath: file,
-		repo:     repo,
-	}
-}
-
-func GetEFMETLPipeline() models.NewETLPipeline {
-	return func(filePath string, repo repository.Repository) models.ETLPipeline {
-		return &EFMETLPipeline{
-			filePath: filePath,
-			repo:     repo,
-		}
-	}
-}
-
 func LoadEFMEventLogs(filePath string) error {
-	basePath := path.Base(filePath)
+	var linesNotExtracted int
+	var lightningsNotFound int
+	var failExtractDateTime int
+	var failExtractDistance int
+	log.Printf("[EFM_ETL] loading efm events from: %s", filePath)
 	file, err := utils.OpenFile(filePath)
 	if err != nil {
-		log.Fatalf("Could not open EFM event logs file from %s", basePath)
+		log.Fatalf("[EFM_ETL] could not open EFM event logs file from %s; error: %s", filePath, err)
 	}
 	scanner := bufio.NewScanner(file)
-	log.Printf("Extracting event logs from: %s", basePath)
+	log.Printf("[EFM_ETL] extracting event logs from: %s", filePath)
 	for scanner.Scan() {
 		s := scanner.Text()
 		if !lightningRegexp.MatchString(s) {
+			lightningsNotFound++
+			linesNotExtracted++
 			continue
 		}
 		match, err := utils.FindString(s, dateTimeRegexp)
 		if err != nil {
+			failExtractDateTime++
+			linesNotExtracted++
 			continue
 		}
 		dateTime, err := time.Parse(time.RFC3339, match[6:10]+"-"+match[0:2]+"-"+match[3:5]+"T"+match[11:]+"Z")
 		if err != nil {
+			failExtractDateTime++
+			linesNotExtracted++
 			continue
 		}
 		match, err = utils.FindString(s, distanceRegexp)
 		if err != nil {
+			failExtractDistance++
+			linesNotExtracted++
 			continue
 		}
 		var splitDistance []string = strings.Split(match, " ")
 		distance, err := strconv.ParseInt(splitDistance[1], 10, 64)
 		if err != nil {
+			failExtractDistance++
+			linesNotExtracted++
 			continue
 		}
 		efmLogEvents[dateTime.UTC().String()] = EFMLogEvent{
@@ -86,7 +85,13 @@ func LoadEFMEventLogs(filePath string) error {
 			Distance:  uint8(distance),
 		}
 	}
-	log.Printf("Event logs extracted from: %s", basePath)
+	if linesNotExtracted > 0 {
+		log.Printf("[EFM_ETL] %d lines could not be extracted from: %s", linesNotExtracted, filePath)
+		log.Printf("[EFM_ETL] %d do not contain lightning", lightningsNotFound)
+		log.Printf("[EFM_ETL] %d failed to extract datetime", failExtractDateTime)
+		log.Printf("[EFM_ETL] %d failed to extract distance", failExtractDistance)
+	}
+	log.Printf("[EFM_ETL] event logs extracted from: %s", filePath)
 	return file.Close()
 }
 
@@ -107,6 +112,22 @@ func groupLinesByTimeAndCalcAvg() func(timeValue string, electricField float64) 
 	}
 }
 
+func NewEFMETLPipeline(file string, dbRepository repository.Repository) *EFMETLPipeline {
+	return &EFMETLPipeline{
+		filePath:     file,
+		dbRepository: dbRepository,
+	}
+}
+
+func GetEFMETLPipeline() models.NewETLPipeline {
+	return func(filePath string, dbRepository repository.Repository) models.ETLPipeline {
+		return &EFMETLPipeline{
+			filePath:     filePath,
+			dbRepository: dbRepository,
+		}
+	}
+}
+
 func (efm *EFMETLPipeline) Extract() (extractedRecords []string, err error) {
 	file, err := utils.OpenFile(efm.filePath)
 	if err != nil {
@@ -119,14 +140,14 @@ func (efm *EFMETLPipeline) Extract() (extractedRecords []string, err error) {
 	return extractedRecords, file.Close()
 }
 
-func (efm *EFMETLPipeline) Transform(records []string) (transformedRecords []interface{}) {
+func (efm *EFMETLPipeline) Transform(records []string) (transformedRecords []interface{}, err error) {
 	calcAvg := groupLinesByTimeAndCalcAvg()
 	for _, record := range records {
-		var splitStr []string = strings.Split(record, ",")
+		splitStr := strings.Split(record, ",")
 		if len(splitStr) != 3 {
 			continue
 		}
-		var date string = strings.Split(path.Base(efm.filePath), "-")[1]
+		date := strings.Split(path.Base(efm.filePath), "-")[1]
 		dateTime, err := time.Parse(time.RFC3339, date[4:8]+"-"+date[0:2]+"-"+date[2:4]+"T"+splitStr[0]+"Z")
 		if err != nil {
 			continue
@@ -152,21 +173,33 @@ func (efm *EFMETLPipeline) Transform(records []string) (transformedRecords []int
 			transformedRecords = append(transformedRecords, efmElectricField)
 		}
 	}
+	if len(transformedRecords) == 0 {
+		return nil, fmt.Errorf("no lines could be transformed from file: %s;", path.Base(efm.filePath))
+	}
 	return
 }
 
 func (efm *EFMETLPipeline) Load(records []interface{}) error {
-	return efm.repo.InsertEFMRecords(records)
+	return efm.dbRepository.InsertEFMRecords(records)
 }
 
 func (efm *EFMETLPipeline) RunETL() error {
+	log.Printf("[EFM_ETL] extracting %s", efm.filePath)
 	extractedRecords, err := efm.Extract()
 	if err != nil {
+		log.Printf("[EFM_ETL] failed extracting %s; error: %s", efm.filePath, err)
 		return err
 	}
-	transformedRecords := efm.Transform(extractedRecords)
+	log.Printf("[EFM_ETL] transforming %s", efm.filePath)
+	transformedRecords, err := efm.Transform(extractedRecords)
+	if err != nil {
+		log.Printf("[EFM_ETL] failed transfroming %s; error: %s", efm.filePath, err)
+		return err
+	}
+	log.Printf("[EFM_ETL] loading %s", efm.filePath)
 	err = efm.Load(transformedRecords)
 	if err != nil {
+		log.Printf("[EFM_ETL] failed loading %s", efm.filePath)
 		return err
 	}
 	return nil

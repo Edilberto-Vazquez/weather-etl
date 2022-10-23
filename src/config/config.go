@@ -1,8 +1,8 @@
 package config
 
 import (
-	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 
@@ -34,16 +34,18 @@ func LoadConfig() error {
 		"WEATHER_FILES_PATH": "",
 	}
 
+	log.Println("Loading config from .env file")
+
 	// Load env vars
 	err := godotenv.Load()
 	if err != nil {
-		return err
+		log.Fatalf("[CONFIG] fail to read .env file; error: %s", err.Error())
 	}
 
 	// Check env vars
 	for k := range envVars {
 		if os.Getenv(k) == "" {
-			return fmt.Errorf("error to load %s variable from .env file you need provide a value", k)
+			log.Fatalf("[CONFIG] fail to load variable (%s) from .env file you need provide a value", k)
 		}
 		envVars[k] = os.Getenv(k)
 	}
@@ -51,7 +53,20 @@ func LoadConfig() error {
 	// Set number of workers
 	workers, err := strconv.Atoi(envVars["WORKERS"])
 	if err != nil {
-		return errors.New("error to load workers number from .env file using default number of workers(4)")
+		log.Printf("[CONFIG] fail to load variable (WORKERS) from .env file; error %s", err)
+
+		var numberOfWorkers int
+		var answer string
+		fmt.Print("[CONFIG] You want use default number of workers(4) yes/no: ")
+		answers := map[string]bool{"Yes": true, "yes": true, "Y": true, "y": true, "": true}
+		fmt.Scanf("%s", &answer)
+		if answers[answer] {
+			log.Printf("[CONFIG] using default number of workers (%d)\n", WORKERS)
+		} else {
+			fmt.Print("[CONFIG]: enter the number of workers to use: ")
+			fmt.Scanf("%d", &numberOfWorkers)
+			WORKERS = numberOfWorkers
+		}
 	} else {
 		WORKERS = workers
 	}
@@ -63,6 +78,8 @@ func LoadConfig() error {
 	EVENTS_FILE_PATH = envVars["EVENTS_FILE_PATH"]
 	EFM_FILES_PATH = envVars["EFM_FILES_PATH"]
 	WEATHER_FILES_PATH = envVars["WEATHER_FILES_PATH"]
+
+	log.Println("[CONFIG] Config Loaded from .env file")
 
 	return nil
 }
