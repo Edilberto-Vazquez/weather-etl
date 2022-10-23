@@ -2,6 +2,7 @@ package usecases
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log"
 	"path"
@@ -105,11 +106,13 @@ func (w *WeatherETLPipeline) Transform(records []string) (transformedRecords []i
 	return
 }
 
-func (w *WeatherETLPipeline) Load(records []interface{}) error {
-	return w.dbRepository.InsertWeatherRecords(records)
+func (w *WeatherETLPipeline) Load(records []interface{}, ctx context.Context) error {
+	return w.dbRepository.InsertWeatherRecords(records, ctx)
 }
 
-func (w *WeatherETLPipeline) RunETL() error {
+func (w *WeatherETLPipeline) RunETL(ctx context.Context) error {
+	c, cancel := context.WithCancel(ctx)
+	defer cancel()
 	log.Printf("[WEATHER_ETL] extracting %s", w.filePath)
 	extractedRecords, err := w.Extract()
 	if err != nil {
@@ -123,7 +126,7 @@ func (w *WeatherETLPipeline) RunETL() error {
 		return err
 	}
 	log.Printf("[WEATHER_ETL] loading %s", w.filePath)
-	err = w.Load(transformedRecords)
+	err = w.Load(transformedRecords, c)
 	if err != nil {
 		log.Printf("[WEATHER_ETL] failed loading %s", w.filePath)
 		return err

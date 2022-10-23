@@ -1,6 +1,7 @@
 package usecases
 
 import (
+	"context"
 	"sync"
 
 	"github.com/Edilberto-Vazquez/weather-services/src/models"
@@ -46,39 +47,19 @@ func (etl *ETLWorkerPool) SetFiles(files []string) error {
 	return nil
 }
 
-func (etl *ETLWorkerPool) ETLWorker() {
+func (etl *ETLWorkerPool) ETLWorker(ctx context.Context) {
 	defer etl.wg.Done()
 	for file := range etl.filesChan {
-		// pathBase := path.Base(file)
 		pipeline := etl.newPipeline(file, etl.repo)
-		err := pipeline.RunETL()
-		if err != nil {
-			continue
-		}
-		// log.Printf("Extracting: %s", pathBase)
-		// err := pipeline.Extract()
-		// if err != nil {
-		// 	log.Printf("Error extracting: %s; Error: %s\n", pathBase, err.Error())
-		// 	continue
-		// }
-		// log.Printf("Extracted: %s", pathBase)
-		// log.Printf("Transforming: %s", pathBase)
-		// pipeline.Transform()
-		// log.Printf("Transformed: %s", pathBase)
-		// log.Printf("Loading: %s", pathBase)
-		// err = pipeline.Load()
-		// if err != nil {
-		// 	log.Printf("Error loading: %s; Error: %s\n", pathBase, err.Error())
-		// 	continue
-		// }
-		// log.Printf("Loaded: %s", pathBase)
+		pipeline.RunETL(ctx)
 	}
 }
 
 func (etl *ETLWorkerPool) Run() {
+	ctx := context.Background()
 	for i := 0; i < etl.workers; i++ {
 		etl.wg.Add(1)
-		go etl.ETLWorker()
+		go etl.ETLWorker(ctx)
 	}
 	for _, filePath := range etl.filesList {
 		etl.filesChan <- filePath

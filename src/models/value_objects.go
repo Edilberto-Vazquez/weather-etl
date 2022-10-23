@@ -1,6 +1,10 @@
 package models
 
-import "github.com/Edilberto-Vazquez/weather-services/src/repository"
+import (
+	"context"
+
+	"github.com/Edilberto-Vazquez/weather-services/src/repository"
+)
 
 type DBConfig struct {
 	URI  string
@@ -9,9 +13,9 @@ type DBConfig struct {
 
 type ETLPipeline interface {
 	Extract() (extractedRecords []string, err error)
-	Transform(records []string) (transformedRecords []interface{})
-	Load(records []interface{}) error
-	RunETL() error
+	Transform(records []string) (transformedRecords []interface{}, err error)
+	Load(records []interface{}, ctx context.Context) error
+	RunETL(ctx context.Context) error
 }
 
 type NewETLPipeline func(filePath string, repo repository.Repository) ETLPipeline

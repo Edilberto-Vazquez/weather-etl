@@ -2,6 +2,7 @@ package usecases
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log"
 	"math"
@@ -179,11 +180,13 @@ func (efm *EFMETLPipeline) Transform(records []string) (transformedRecords []int
 	return
 }
 
-func (efm *EFMETLPipeline) Load(records []interface{}) error {
-	return efm.dbRepository.InsertEFMRecords(records)
+func (efm *EFMETLPipeline) Load(records []interface{}, ctx context.Context) error {
+	return efm.dbRepository.InsertEFMRecords(records, ctx)
 }
 
-func (efm *EFMETLPipeline) RunETL() error {
+func (efm *EFMETLPipeline) RunETL(ctx context.Context) error {
+	c, cancel := context.WithCancel(ctx)
+	defer cancel()
 	log.Printf("[EFM_ETL] extracting %s", efm.filePath)
 	extractedRecords, err := efm.Extract()
 	if err != nil {
@@ -197,7 +200,7 @@ func (efm *EFMETLPipeline) RunETL() error {
 		return err
 	}
 	log.Printf("[EFM_ETL] loading %s", efm.filePath)
-	err = efm.Load(transformedRecords)
+	err = efm.Load(transformedRecords, c)
 	if err != nil {
 		log.Printf("[EFM_ETL] failed loading %s", efm.filePath)
 		return err
