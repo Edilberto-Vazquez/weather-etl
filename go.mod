@@ -1,4 +1,4 @@
-module github.com/Edilberto-Vazquez/weather-services
+module github.com/Edilberto-Vazquez/weather-etl
 
 go 1.18
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"log"
 
-	"github.com/Edilberto-Vazquez/weather-services/src/config"
-	"github.com/Edilberto-Vazquez/weather-services/src/models"
+	"github.com/Edilberto-Vazquez/weather-etl/src/config"
+	"github.com/Edilberto-Vazquez/weather-etl/src/models"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )

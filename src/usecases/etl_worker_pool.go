@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Edilberto-Vazquez/weather-services/src/models"
-	"github.com/Edilberto-Vazquez/weather-services/src/repository"
+	"github.com/Edilberto-Vazquez/weather-etl/src/models"
+	"github.com/Edilberto-Vazquez/weather-etl/src/repository"
 	"golang.org/x/sync/semaphore"
 )
 

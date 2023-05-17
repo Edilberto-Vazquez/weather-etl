@@ -10,10 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Edilberto-Vazquez/weather-services/src/domains"
-	"github.com/Edilberto-Vazquez/weather-services/src/models"
-	"github.com/Edilberto-Vazquez/weather-services/src/repository"
-	"github.com/Edilberto-Vazquez/weather-services/src/utils"
+	"github.com/Edilberto-Vazquez/weather-etl/src/domains"
+	"github.com/Edilberto-Vazquez/weather-etl/src/models"
+	"github.com/Edilberto-Vazquez/weather-etl/src/repository"
+	"github.com/Edilberto-Vazquez/weather-etl/src/utils"
 	"golang.org/x/text/encoding/unicode"
 )
 

@@ -4,10 +4,10 @@ import (
 	"log"
 	"time"
 
-	"github.com/Edilberto-Vazquez/weather-services/src/config"
-	"github.com/Edilberto-Vazquez/weather-services/src/drivers"
-	"github.com/Edilberto-Vazquez/weather-services/src/usecases"
-	"github.com/Edilberto-Vazquez/weather-services/src/utils"
+	"github.com/Edilberto-Vazquez/weather-etl/src/config"
+	"github.com/Edilberto-Vazquez/weather-etl/src/drivers"
+	"github.com/Edilberto-Vazquez/weather-etl/src/usecases"
+	"github.com/Edilberto-Vazquez/weather-etl/src/utils"
 )
 
 func runETL() {

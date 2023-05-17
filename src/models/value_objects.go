@@ -3,7 +3,7 @@ package models
 import (
 	"context"
 
-	"github.com/Edilberto-Vazquez/weather-services/src/repository"
+	"github.com/Edilberto-Vazquez/weather-etl/src/repository"
 )
 
 type DBConfig struct {

@@ -6,7 +6,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/Edilberto-Vazquez/weather-services/src/models"
+	"github.com/Edilberto-Vazquez/weather-etl/src/models"
 	"github.com/joho/godotenv"
 )
 
