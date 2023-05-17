@@ -5,7 +5,7 @@ import (
 )
 
 type EFMElectricField struct {
-	DateTime      time.Time `bson:"date_time"`
+	DateTime      time.Time `bson:"datetime"`
 	Lightning     bool      `bson:"lightning"`
 	ElectricField float64   `bson:"electric_field"`
 	Distance      uint8     `bson:"distance"`
@@ -13,7 +13,7 @@ type EFMElectricField struct {
 }
 
 type WeatherRecords struct {
-	DateTime time.Time `csv:"Fecha (America/Mexico_City)" bson:"date_time"`
+	DateTime time.Time `csv:"Fecha (America/Mexico_City)" bson:"datetime"`
 	TempIn   float64   `csv:"Tempin (°C)" bson:"temp_in"`
 	Temp     float64   `csv:"Temp (°C)" bson:"temp"`
 	Chill    float64   `csv:"Chill (°C)" bson:"chill"`
