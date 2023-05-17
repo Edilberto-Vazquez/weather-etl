@@ -2,30 +2,30 @@ package usecases
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/Edilberto-Vazquez/weather-services/src/models"
 	"github.com/Edilberto-Vazquez/weather-services/src/repository"
+	"golang.org/x/sync/semaphore"
 )
 
 type ETLWorkerPool struct {
-	workers     int
+	semaphore   *semaphore.Weighted
 	wg          sync.WaitGroup
 	filesList   []string
-	filesChan   chan string
 	repo        repository.Repository
 	newPipeline models.NewETLPipeline
 }
 
 type ETLWorkerPoolConfig func(etl *ETLWorkerPool)
 
-func NewETLWorkerPoolConfig(workers int, repo repository.Repository, files []string, pipeline models.NewETLPipeline) ETLWorkerPoolConfig {
+func NewETLWorkerPoolConfig(workers int64, repo repository.Repository, files []string, pipeline models.NewETLPipeline) ETLWorkerPoolConfig {
 	return func(etl *ETLWorkerPool) {
 		etl.repo = repo
-		etl.workers = workers
+		etl.semaphore = semaphore.NewWeighted(workers)
 		etl.newPipeline = pipeline
 		etl.filesList = files
-		etl.filesChan = make(chan string, len(files))
 	}
 }
 
@@ -43,27 +43,33 @@ func (etl *ETLWorkerPool) SetPipeline(pipeline models.NewETLPipeline) {
 
 func (etl *ETLWorkerPool) SetFiles(files []string) error {
 	etl.filesList = files
-	etl.filesChan = make(chan string, len(files))
 	return nil
 }
 
-func (etl *ETLWorkerPool) ETLWorker(ctx context.Context) {
-	defer etl.wg.Done()
-	for file := range etl.filesChan {
+func (etl *ETLWorkerPool) addJob(file string) {
+	etl.wg.Add(1)
+	go func() {
+		ctx := context.Background()
+		defer etl.wg.Done()
+		err := etl.semaphore.Acquire(ctx, 1)
+		if err != nil {
+			fmt.Println("Error acquiring semaphore:", err)
+			return
+		}
+		defer etl.semaphore.Release(1)
+
 		pipeline := etl.newPipeline(file, etl.repo)
 		pipeline.RunETL(ctx)
-	}
+	}()
+}
+
+func (etl *ETLWorkerPool) wait() {
+	etl.wg.Wait()
 }
 
 func (etl *ETLWorkerPool) Run() {
-	ctx := context.Background()
-	for i := 0; i < etl.workers; i++ {
-		etl.wg.Add(1)
-		go etl.ETLWorker(ctx)
+	for _, file := range etl.filesList {
+		etl.addJob(file)
 	}
-	for _, filePath := range etl.filesList {
-		etl.filesChan <- filePath
-	}
-	close(etl.filesChan)
-	etl.wg.Wait()
+	etl.wait()
 }

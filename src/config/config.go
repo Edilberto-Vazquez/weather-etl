@@ -17,7 +17,7 @@ const (
 )
 
 var (
-	WORKERS            int             = 4
+	WORKERS            int64           = 4
 	DB_CONFIG          models.DBConfig = models.DBConfig{URI: "", Name: ""}
 	EVENTS_FILE_PATH   string          = ""
 	EFM_FILES_PATH     string          = ""
@@ -51,11 +51,11 @@ func LoadConfig() error {
 	}
 
 	// Set number of workers
-	workers, err := strconv.Atoi(envVars["WORKERS"])
+	workers, err := strconv.ParseInt(envVars["WORKERS"], 10, 64)
 	if err != nil {
 		log.Printf("[CONFIG] fail to load variable (WORKERS) from .env file; error %s", err)
 
-		var numberOfWorkers int
+		var numberOfWorkers int64
 		var answer string
 		fmt.Print("[CONFIG] You want use default number of workers(4) yes/no: ")
 		answers := map[string]bool{"Yes": true, "yes": true, "Y": true, "y": true, "": true}

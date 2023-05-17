@@ -27,6 +27,7 @@ func runETL() {
 
 	repo := drivers.NewMongoDBConnection(config.DB_CONFIG)
 	pipeline := usecases.GetEFMETLPipeline()
+
 	wpConfig := usecases.NewETLWorkerPoolConfig(config.WORKERS, repo, efmFilePaths, pipeline)
 	wp := usecases.NewETLWorkerPool(wpConfig)
 	wp.Run()
@@ -36,6 +37,7 @@ func runETL() {
 		log.Fatalf("Could not loading weather file paths from: %s; Error: %s", config.WEATHER_FILES_PATH, err.Error())
 	}
 	pipeline = usecases.GetWeatherETLPipeline()
+
 	wp.SetPipeline(pipeline)
 	wp.SetFiles(weatherFilePaths)
 	wp.Run()

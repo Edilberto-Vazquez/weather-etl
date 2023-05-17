@@ -24,12 +24,10 @@ func NewMongoDBConnection(dbConfig models.DBConfig) *MongoDBDriver {
 }
 
 func (m *MongoDBDriver) InsertEFMRecords(records []interface{}, ctx context.Context) error {
-	c, cancel := context.WithCancel(ctx)
-	defer cancel()
 	if records == nil {
 		return nil
 	}
-	_, err := m.db.Collection(config.DB_EFM_COLLECTION).InsertMany(c, records)
+	_, err := m.db.Collection(config.DB_EFM_COLLECTION).InsertMany(ctx, records)
 	if err != nil {
 		return err
 	}
@@ -37,12 +35,10 @@ func (m *MongoDBDriver) InsertEFMRecords(records []interface{}, ctx context.Cont
 }
 
 func (m *MongoDBDriver) InsertWeatherRecords(records []interface{}, ctx context.Context) error {
-	c, cancel := context.WithCancel(ctx)
-	defer cancel()
 	if records == nil {
 		return nil
 	}
-	_, err := m.db.Collection(config.DB_WEATHER_COLLECTION).InsertMany(c, records)
+	_, err := m.db.Collection(config.DB_WEATHER_COLLECTION).InsertMany(ctx, records)
 	if err != nil {
 		return err
 	}
