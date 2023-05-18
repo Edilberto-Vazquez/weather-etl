@@ -12,7 +12,7 @@ import (
 
 const (
 	APP_NAME              string = "EFM-ETL"
-	DB_EFM_COLLECTION     string = "ElectricFields"
+	DB_EFM_COLLECTION     string = "EFMRecords"
 	DB_WEATHER_COLLECTION string = "WeatherRecords"
 )
 
