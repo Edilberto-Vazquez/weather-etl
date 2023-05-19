@@ -30,10 +30,11 @@ type EFMETLPipeline struct {
 }
 
 var (
-	efmLogEvents    map[string]EFMLogEvent = make(map[string]EFMLogEvent, 0)
-	dateTimeRegexp  *regexp.Regexp         = regexp.MustCompile(`\d\d/\d\d/\d\d\d\d\s\d\d:\d\d:\d\d`)
-	lightningRegexp *regexp.Regexp         = regexp.MustCompile(`Lightning Detected`)
-	distanceRegexp  *regexp.Regexp         = regexp.MustCompile(`at\s\d\d\skm|at\s\d\skm`)
+	efmLogEvents          map[string]EFMLogEvent = make(map[string]EFMLogEvent, 0)
+	efmLogEventsRoundDate map[string]EFMLogEvent = make(map[string]EFMLogEvent, 0)
+	dateTimeRegexp        *regexp.Regexp         = regexp.MustCompile(`\d\d/\d\d/\d\d\d\d\s\d\d:\d\d:\d\d`)
+	lightningRegexp       *regexp.Regexp         = regexp.MustCompile(`Lightning Detected`)
+	distanceRegexp        *regexp.Regexp         = regexp.MustCompile(`at\s\d\d\skm|at\s\d\skm`)
 )
 
 func LoadEFMEventLogs(filePath string) error {
@@ -82,6 +83,12 @@ func LoadEFMEventLogs(filePath string) error {
 		}
 		efmLogEvents[dateTime.UTC().String()] = EFMLogEvent{
 			DateTime:  dateTime.UTC().String(),
+			Lightning: true,
+			Distance:  uint8(distance),
+		}
+		roundedDate := dateTime.UTC().Round(10 * time.Minute).String()
+		efmLogEventsRoundDate[roundedDate] = EFMLogEvent{
+			DateTime:  roundedDate,
 			Lightning: true,
 			Distance:  uint8(distance),
 		}

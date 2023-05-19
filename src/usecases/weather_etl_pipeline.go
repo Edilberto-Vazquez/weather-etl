@@ -81,7 +81,9 @@ func (w *WeatherETLPipeline) Transform(records []string) (transformedRecords []i
 		if err != nil {
 			continue
 		}
-		transformedRecords = append(transformedRecords, domains.WeatherRecords{
+
+		value, exist := efmLogEventsRoundDate[dateTime.String()]
+		transformedRecord := domains.WeatherRecords{
 			DateTime: dateTime,
 			TempIn:   transformWeatherField(splitRecord[1]),
 			Temp:     transformWeatherField(splitRecord[2]),
@@ -98,7 +100,16 @@ func (w *WeatherETLPipeline) Transform(records []string) (transformedRecords []i
 			Bar:      transformWeatherField(splitRecord[13]),
 			Rain:     transformWeatherField(splitRecord[14]),
 			RainRate: transformWeatherField(splitRecord[15]),
-		})
+		}
+		if exist {
+			transformedRecord.Lightning = value.Lightning
+			transformedRecord.Distance = value.Distance
+		} else {
+			transformedRecord.Lightning = false
+			transformedRecord.Distance = 0
+		}
+		transformedRecords = append(transformedRecords, transformedRecord)
+
 	}
 	if len(transformedRecords) == 0 {
 		return nil, fmt.Errorf("no lines could be transformed from file: %s;", path.Base(w.filePath))
