@@ -158,6 +158,9 @@ func (efm *EFMETLPipeline) Transform(records []string) (transformedRecords []int
 			continue
 		}
 		if avg := calcAvg(splitStr[0], electricField); avg != 0 {
+			if math.IsNaN(avg) {
+				continue
+			}
 			value, exist := efmLogEvents[dateTime.String()]
 			efmElectricField := domains.EFMElectricField{
 				DateTime:      dateTime.UTC(),
