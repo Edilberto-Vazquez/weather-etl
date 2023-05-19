@@ -8,5 +8,3 @@ db.createUser({
         },
     ],
 });
-
-db.createCollection("ElectricFields");
